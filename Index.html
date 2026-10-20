@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>법인카드 회식 정산 앱</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background-color: #f4f6f8; color: #333; padding: 16px; max-width: 500px; margin: 0 auto; }
+h1 { font-size: 20px; text-align: center; margin-bottom: 16px; color: #1a252c; }
+
+.card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.card-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
+
+.input-group { margin-bottom: 10px; }
+.input-group label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+.input-group input, .input-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+.input-group input:focus, .input-group select:focus { border-color: #007bff; }
+
+.btn { width: 100%; padding: 12px; background: #007bff; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
+.btn:active { background: #0056b3; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.summary-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 10px; border-radius: 8px; text-align: center; }
+.summary-box .team { font-size: 12px; color: #666; margin-bottom: 4px; }
+.summary-box .amount { font-size: 14px; font-weight: bold; color: #007bff; }
+
+.total-box { background: #e7f1ff; border: 1px solid #b6d4fe; padding: 12px; border-radius: 8px; margin-top: 10px; text-align: center; }
+.total-box .title { font-size: 13px; color: #084298; }
+.total-box .amount { font-size: 18px; font-weight: bold; color: #084298; margin-top: 2px; }
+
+.list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+.list-item:last-child { border-bottom: none; }
+.list-info .place { font-size: 14px; font-weight: bold; }
+.list-info .sub { font-size: 11px; color: #888; margin-top: 2px; }
+.list-amount { font-size: 14px; font-weight: bold; text-align: right; }
+.del-btn { background: none; border: none; color: #dc3545; font-size: 12px; margin-left: 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>💳 법인카드 회식 정산기</h1>
+
+<!-- 입력 폼 -->
+<div class="card">
+<div class="card-title">내역 추가</div>
+<div class="input-group">
+<label>사용 팀/대상</label>
+<select id="teamSelect">
+<option value="공무팀">공무팀</option>
+<option value="허재혁">허재혁</option>
+<option value="김선모">김선모</option>
+</select>
+</div>
+<div class="input-group">
+<label>사용처 (식당/카페명)</label>
+<input type="text" id="placeInput" placeholder="예: 삼겹살집, 카페">
+</div>
+<div class="input-group">
+<label>결제 금액 (원)</label>
+<input type="number" id="amountInput" placeholder="숫자만 입력">
+</div>
+<button class="btn" onclick="addRecord()">내역 저장하기</button>
+</div>
+
+<!-- 팀별 사용 집계 -->
+<div class="card">
+<div class="card-title">팀별 사용 합계</div>
+<div class="summary-grid">
+<div class="summary-box">
+<div class="team">공무팀</div>
+<div class="amount" id="sum-공무팀">0원</div>
+</div>
+<div class="summary-box">
+<div class="team">허재혁</div>
+<div class="amount" id="sum-허재혁">0원</div>
+</div>
+<div class="summary-box">
+<div class="team">김선모</div>
+<div class="amount" id="sum-김선모">0원</div>
+</div>
+</div>
+<div class="total-box">
+<div class="title">총 사용 금액</div>
+<div class="amount" id="totalAmount">0원</div>
+</div>
+</div>
+
+<!-- 사용 내역 리스트 -->
+<div class="card">
+<div class="card-title">
+사용 상세 내역
+<button onclick="clearAll()" style="background:none; border:none; color:#888; font-size:11px; cursor:pointer;">전체삭제</button>
+</div>
+<div id="recordList">
+<p style="text-align: center; color: #aaa; font-size: 13px; padding: 10px 0;">등록된 내역이 없습니다.</p>
+</div>
+</div>
+
+<script>
+let records = JSON.parse(localStorage.getItem('cardRecords')) || [];
+
+function updateView() {
+const listEl = document.getElementById('recordList');
+listEl.innerHTML = '';
+
+let totals = { '공무팀': 0, '허재혁': 0, '김선모': 0 };
+let grandTotal = 0;
+
+if (records.length === 0) {
+listEl.innerHTML = '<p style="text-align: center; color: #aaa; font-size: 13px; padding: 10px 0;">등록된 내역이 없습니다.</p>';
+} else {
+records.forEach((item, index) => {
+totals[item.team] += item.amount;
+grandTotal += item.amount;
+
+const itemEl = document.createElement('div');
+itemEl.className = 'list-item';
+itemEl.innerHTML = &lt;div class="list-info"&gt; &lt;div class="place"&gt;[${item.team}] ${item.place}&lt;/div&gt; &lt;div class="sub"&gt;${item.date}</div>
+</div>
+<div>
+<span class="list-amount">${item.amount.toLocaleString()}원&lt;/span&gt; &lt;button class="del-btn" onclick="deleteRecord(${index})">삭제</button>
+</div>
+`;
+listEl.appendChild(itemEl);
+});
+}
+
+// 집계 업데이트
+document.getElementById('sum-공무팀').innerText = totals['공무팀'].toLocaleString() + '원';
+document.getElementById('sum-허재혁').innerText = totals['허재혁'].toLocaleString() + '원';
+document.getElementById('sum-김선모').innerText = totals['김선모'].toLocaleString() + '원';
+document.getElementById('totalAmount').innerText = grandTotal.toLocaleString() + '원';
+
+// 저장
+localStorage.setItem('cardRecords', JSON.stringify(records));
+}
+
+function addRecord() {
+const team = document.getElementById('teamSelect').value;
+const place = document.getElementById('placeInput').value.trim();
+const amount = parseInt(document.getElementById('amountInput').value);
+
+if (!place) { alert('사용처를 입력해주세요.'); return; }
+if (isNaN(amount) || amount <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
+
+const today = new Date();
+const dateStr = ``${today.getMonth()+1}/{today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`;
+
+records.unshift({ team, place, amount, date: dateStr });
+
+document.getElementById('placeInput').value = '';
+document.getElementById('amountInput').value = '';
+
+updateView();
+}
+
+function deleteRecord(index) {
+records.splice(index, 1);
+updateView();
+}
+
+function clearAll() {
+if (confirm('모든 정산 내역을 삭제하시겠습니까?')) {
+records = [];
+updateView();
+}
+}
+
+// 초기 화면 로드
+updateView();
+</script>
+</body>
+</html>
